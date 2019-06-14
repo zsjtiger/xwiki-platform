@@ -328,62 +328,7 @@ public class XWikiCacheStore extends AbstractXWikiStore
         XWikiContext context = getExecutionXContext(inputxcontext, true);
 
         try {
-            // Calculate the cache key
-            String key = getKey(doc, context);
-
-            LOGGER.debug("Cache: Trying to get doc {} from cache", key);
-
-            XWikiDocument cachedoc;
-            try {
-                cachedoc = getCache().get(key);
-            } catch (Exception e) {
-                LOGGER.error("Failed to get document from the cache", e);
-
-                cachedoc = null;
-            }
-
-            if (cachedoc != null) {
-                cachedoc.setFromCache(true);
-
-                LOGGER.debug("Cache: got doc {} from cache", key);
-            } else {
-                Boolean result = getPageExistCache().get(key);
-
-                if (result == Boolean.FALSE) {
-                    LOGGER.debug("Cache: The document {} does not exist, return an empty one", key);
-
-                    cachedoc = doc;
-                    cachedoc.setNew(true);
-
-                    // Make sure to always return a document with an original version, even for one that does not exist.
-                    // Allow writing more generic code.
-                    cachedoc
-                        .setOriginalDocument(new XWikiDocument(cachedoc.getDocumentReference(), cachedoc.getLocale()));
-                } else {
-                    LOGGER.debug("Cache: Trying to get doc {} from persistent storage", key);
-
-                    cachedoc = this.store.loadXWikiDoc(doc, context);
-
-                    LOGGER.debug("Cache: Got doc {} from storage", key);
-
-                    if (cachedoc.isNew()) {
-                        getPageExistCache().set(key, Boolean.FALSE);
-                    } else {
-                        getCache().set(key, cachedoc);
-
-                        // Also update exist cache
-                        getPageExistCache().set(key, Boolean.TRUE);
-                    }
-
-                    LOGGER.debug("Cache: put doc {} in cache", key);
-                }
-
-                cachedoc.setStore(this.store);
-            }
-
-            LOGGER.debug("Cache: end for doc {} in cache", key);
-
-            return cachedoc;
+            return this.store.loadXWikiDoc(doc, context);
         } finally {
             restoreExecutionXContext();
         }

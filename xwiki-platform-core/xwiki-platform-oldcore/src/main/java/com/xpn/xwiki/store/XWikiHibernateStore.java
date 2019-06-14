@@ -35,6 +35,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.concurrent.atomic.AtomicReference;
@@ -174,6 +175,8 @@ public class XWikiHibernateStore extends XWikiHibernateBaseStore implements XWik
     private AttachmentVersioningStore attachmentArchiveStore;
 
     private Map<String, String[]> validTypesMap = new HashMap<>();
+
+    private static Random random = new Random();
 
     /**
      * This allows to initialize our storage engine. The hibernate config file path is taken from xwiki.cfg or directly
@@ -528,8 +531,11 @@ public class XWikiHibernateStore extends XWikiHibernateBaseStore implements XWik
     @Override
     public void saveXWikiDoc(XWikiDocument doc, XWikiContext inputxcontext, boolean bTransaction) throws XWikiException
     {
+        int execNumber = random.nextInt();
+        if (doc.getDocumentReference().toString().contains("EditIT")) {
+            this.logger.warn("Thread [{}] Exec [{}] Starting saving [{}] with content [{}]", Thread.currentThread().getId(), execNumber, doc.getDocumentReference(), doc.getContent());
+        }
         XWikiContext context = getExecutionXContext(inputxcontext, true);
-
         try {
             MonitorPlugin monitor = Util.getMonitorPlugin(context);
             try {
@@ -722,6 +728,9 @@ public class XWikiHibernateStore extends XWikiHibernateBaseStore implements XWik
             }
         } finally {
             restoreExecutionXContext();
+            if (doc.getDocumentReference().toString().contains("EditIT")) {
+                this.logger.warn("Thread [{}] Exec [{}] Finishing saving [{}] with content [{}]", Thread.currentThread().getId(), execNumber, doc.getDocumentReference(), doc.getContent());
+            }
         }
     }
 
@@ -891,6 +900,10 @@ public class XWikiHibernateStore extends XWikiHibernateBaseStore implements XWik
     @Override
     public XWikiDocument loadXWikiDoc(XWikiDocument doc, XWikiContext inputxcontext) throws XWikiException
     {
+        int execNumber = random.nextInt();
+        if (doc.getDocumentReference().toString().contains("EditIT")) {
+            this.logger.warn("Thread [{}] Exec [{}] Starting loading [{}] with content [{}]", Thread.currentThread().getId(), execNumber, doc.getDocumentReference(), doc.getContent());
+        }
         XWikiContext context = getExecutionXContext(inputxcontext, true);
 
         try {
@@ -924,7 +937,9 @@ public class XWikiHibernateStore extends XWikiHibernateBaseStore implements XWik
                     // Make sure to always return a document with an original version, even for one that does not exist.
                     // Allow writing more generic code.
                     doc.setOriginalDocument(new XWikiDocument(doc.getDocumentReference(), doc.getLocale()));
-
+                    if (doc.getDocumentReference().toString().contains("EditIT")) {
+                        this.logger.warn("Thread [{}][{}] Loading because not found [{}] with content [{}]", Thread.currentThread(), Thread.currentThread().getId(), doc.getDocumentReference(), doc.getContent());
+                    }
                     return doc;
                 }
 
@@ -1054,7 +1069,9 @@ public class XWikiHibernateStore extends XWikiHibernateBaseStore implements XWik
             }
 
             this.logger.debug("Loaded XWikiDocument: [{}]", doc.getDocumentReference());
-
+            if (doc.getDocumentReference().toString().contains("EditIT")) {
+                this.logger.warn("Thread [{}] Exec [{}] Finishing loading [{}] with content [{}]", Thread.currentThread().getId(), execNumber, doc.getDocumentReference(), doc.getContent());
+            }
             return doc;
         } finally {
             restoreExecutionXContext();

@@ -20,6 +20,7 @@
 package org.xwiki.flamingo.test.ui;
 
 import java.util.Arrays;
+import java.util.Random;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -37,7 +38,9 @@ import org.xwiki.panels.test.po.DocumentInformationPanel;
 import org.xwiki.test.docker.junit5.TestConfiguration;
 import org.xwiki.test.docker.junit5.TestReference;
 import org.xwiki.test.docker.junit5.UITest;
+import org.xwiki.test.docker.junit5.browser.Browser;
 import org.xwiki.test.docker.junit5.database.Database;
+import org.xwiki.test.docker.junit5.servletengine.ServletEngine;
 import org.xwiki.test.integration.junit.LogCaptureConfiguration;
 import org.xwiki.test.ui.TestUtils;
 import org.xwiki.test.ui.po.CreatePagePage;
@@ -59,7 +62,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  * @version $Id$
  * @since 11.2RC1
  */
-@UITest
+@UITest(servletEngine = ServletEngine.TOMCAT, database = Database.MYSQL, browser = Browser.CHROME)
 public class EditIT
 {
     @BeforeAll
@@ -817,6 +820,60 @@ public class EditIT
         } finally {
             // disable back xhtml syntax
             setup.deleteObject("Rendering", "RenderingConfig", "Rendering.RenderingConfigClass", 0);
+        }
+    }
+
+    /**
+     * This test aims at helping to fix the flicker for editWithConflict. It is supposed to be removed once it's
+     * clear why editWithConflict is flickering. You can follow the status of the issue on
+     * https://jira.xwiki.org/browse/XWIKI-16406.
+     */
+    @Test
+    @Order(13)
+    public void savePage(TestUtils setup, TestReference testReference) throws Exception
+    {
+        // remove panels and UIX to avoid async-related requests
+        setup.setWikiPreference("rightPanels", "");
+        setup.setWikiPreference("leftPanels", "");
+        setup.deleteObject("XWiki", "UserProfileUIX", "XWiki.UIExtensionClass", 0);
+        Random random = new Random();
+        String title = testReference.getLastSpaceReference().getName();
+        setup.deletePage(testReference);
+
+        String content1, content2;
+        setup.createPage(testReference, "", title);
+
+        WikiEditPage editPage1, editPage2;
+        String tab1 = setup.getCurrentTabHandle();
+        String tab2 = setup.openLinkInTab(By.linkText(title), tab1);
+
+        // on a4 a loop of 10 is enough to reproduce most of the time but not always
+        for (int i = 0; i < 10; i++) {
+            content1 = String.format("Some content first tab %s", random.nextInt());
+            content2 = String.format("Some content second tab %s", random.nextInt());
+            setup.switchTab(tab1);
+            editPage1 = setup.gotoPage(testReference).editWiki();
+            setup.switchTab(tab2);
+            editPage2 = setup.gotoPage(testReference).editWiki();
+            editPage2.setContent(content2);
+            ViewPage viewPage2 = editPage2.clickSaveAndView();
+            // it never failed here
+            assertEquals(content2, viewPage2.getContent(), "first assert loop " + i);
+
+            setup.switchTab(tab1);
+            editPage1.setContent(content1);
+            editPage1.clickSaveAndContinue(false);
+
+            EditConflictModal editConflictModal = new EditConflictModal();
+            assertTrue(editConflictModal.isDisplayed());
+            assertEquals(EditConflictModal.ConflictChoice.MERGE, editConflictModal.getCurrentChoice());
+            editConflictModal = editConflictModal.makeChoice(EditConflictModal.ConflictChoice.OVERRIDE);
+            editConflictModal.submitCurrentChoice(true);
+            assertEquals(content1, editPage1.getExactContent());
+            ViewPage viewPage1 = setup.gotoPage(testReference);
+//            setup.getDriver().navigate().refresh();
+//            viewPage1 = new ViewPage();
+            assertEquals(content1, viewPage1.getContent(), "loop " + i);
         }
     }
 }

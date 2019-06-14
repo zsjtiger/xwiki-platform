@@ -526,7 +526,7 @@ public class TestUtils
      */
     public void gotoPage(EntityReference reference, String action)
     {
-        gotoPage(reference, action, "");
+        gotoPage(reference, action, "hack=" + new java.util.Random().nextInt());
     }
 
     /**
